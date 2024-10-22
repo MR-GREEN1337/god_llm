@@ -50,13 +50,13 @@ class God:
         self.template_manager = template_manager or TemplateManager()
         self.nodes: Dict[str, Node] = {}
         
-        # Enhanced scoring weights
         self.metric_weights = {
             ScoreMetric.DEPTH: 0.25,
             ScoreMetric.RELATION: 0.15,
             ScoreMetric.COHERENCE: 0.25,
             ScoreMetric.NOVELTY: 0.15,
             ScoreMetric.CONTEXT_RETENTION: 0.20,
+            ScoreMetric.HIERARCHY: 0.20
         }
 
     def _build_context_history(self, node_id: Optional[str]) -> List[Context]:
@@ -260,7 +260,7 @@ class God:
             ).content.split("\n")
 
             for question in [q.strip() for q in questions if q.strip()]:
-                self.expand(question, node.id, depth + 1)
+                _ = self.expand(question, node.id, depth + 1)
 
         return node.id
 
@@ -292,19 +292,89 @@ class God:
             
         return np.mean(retention_scores)
 
+    def _compute_hierarchy_score(self, path: List[str]) -> float:
+        """
+        Compute a score based on the strength of parent-child relationships in the path.
+        Returns a value between 0 and 1, where 1 indicates strong hierarchical connections.
+        """
+        if len(path) < 2:
+            return 1.0
+
+        hierarchy_scores = []
+        for i in range(len(path) - 1):
+            current_node = self.nodes[path[i]]
+            next_node = self.nodes[path[i + 1]]
+            
+            # Check if there's a direct parent-child relationship
+            is_parent_child = (next_node.parent_id == current_node.id)
+            
+            if is_parent_child:
+                # Calculate semantic similarity for parent-child relationship
+                similarity = self._compute_similarity(current_node, next_node)
+                # Weight parent-child relationships more heavily
+                weighted_score = 0.7 + (0.3 * similarity)
+            else:
+                # For non-parent-child relationships, use a lower base score
+                similarity = self._compute_similarity(current_node, next_node)
+                weighted_score = 0.3 * similarity
+
+            hierarchy_scores.append(weighted_score)
+            
+        return np.mean(hierarchy_scores)
+
+    def _compute_relation_score(self, path: List[str]) -> float:
+        """
+        Compute a score based on lateral relationships between nodes in the path.
+        """
+        if len(path) < 2:
+            return 1.0
+            
+        relation_scores = []
+        for i in range(len(path)):
+            current_node = self.nodes[path[i]]
+            # Calculate how many nodes in the path are related to the current node
+            related_nodes = set(current_node.relations).intersection(set(path))
+            # Exclude parent-child relationships from lateral relations count
+            if current_node.parent_id in related_nodes:
+                related_nodes.remove(current_node.parent_id)
+            for child_id in current_node.children:
+                if child_id in related_nodes:
+                    related_nodes.remove(child_id)
+                    
+            # Normalize the score based on potential relations
+            potential_relations = len(path) - 1  # exclude self
+            relation_score = len(related_nodes) / potential_relations if potential_relations > 0 else 0
+            relation_scores.append(relation_score)
+            
+        return np.mean(relation_scores)
+
     def _compute_path_score(self, path: List[str]) -> PathScore:
         if self.debug:
             logger.info(f"Computing total path score for path of length {len(path)}")
             
         metrics = {
             ScoreMetric.DEPTH: np.mean([self.nodes[node_id].score for node_id in path]),
-            ScoreMetric.RELATION: sum(len(self.nodes[node_id].relations) for node_id in path) / len(path),
+            ScoreMetric.RELATION: self._compute_relation_score(path),
             ScoreMetric.COHERENCE: self._compute_coherence_score(path),
             ScoreMetric.NOVELTY: self._compute_novelty_score(path),
-            ScoreMetric.CONTEXT_RETENTION: self._compute_context_retention_score(path)
+            ScoreMetric.CONTEXT_RETENTION: self._compute_context_retention_score(path),
+            ScoreMetric.HIERARCHY: self._compute_hierarchy_score(path)
         }
         
         total = sum(score * self.metric_weights[metric] for metric, score in metrics.items())
+        
+        if self.debug:
+            logger.debug(f"""
+            Path scoring breakdown:
+            - Depth: {metrics[ScoreMetric.DEPTH]:.3f}
+            - Relation: {metrics[ScoreMetric.RELATION]:.3f}
+            - Coherence: {metrics[ScoreMetric.COHERENCE]:.3f}
+            - Novelty: {metrics[ScoreMetric.NOVELTY]:.3f}
+            - Context Retention: {metrics[ScoreMetric.CONTEXT_RETENTION]:.3f}
+            - Hierarchy: {metrics[ScoreMetric.HIERARCHY]:.3f}
+            - Total Score: {total:.3f}
+            """)
+            
         return PathScore(total=total, metrics=metrics)
 
     def _compute_coherence_score(self, path: List[str]) -> float:

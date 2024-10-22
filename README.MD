@@ -44,7 +44,7 @@ from god_llm.plugins.groq import ChatGroq
 
 llm = ChatGroq(
     model_name="llama-3.1-70b-versatile",
-    api_key="gsk_oLJNYyXBJsbhTjKncdhaWGdyb3FY7SERaUTLJqfQpPS1RSwoszKyhH", #Dummy API key
+    api_key="hello", #Dummy API key
 )
 god = God(llm=llm)
 
@@ -89,3 +89,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 Built with ❤️ for better thought exploration
+
+## When finding path, also account for relations, combine hierarchical (parent-child) and lateral (relations) nodes for retrieval, give higher weight for parent-child relationships
+## Allow to ask the right questions, that is the true wisdom of the God LLM

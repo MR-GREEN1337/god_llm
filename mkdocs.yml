@@ -1,0 +1,103 @@
+site_name: God LLM Documentation
+site_description: Documentation for the God LLM thought exploration framework
+site_author: Your Name
+repo_url: https://github.com/mr-green1337/god-llm
+repo_name: god-llm
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - footnotes
+  - toc:
+      permalink: true
+  - attr_list
+  - def_list
+
+plugins:
+  - search
+  - autorefs
+  - minify:
+      minify_html: true
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            show_bases: true
+            heading_level: 2
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Configuration: getting-started/configuration.md
+  - Core Concepts:
+    - Overview: concepts/overview.md
+    - God Class: concepts/god.md
+    - Node System: concepts/nodes.md
+    - Scoring Metrics: concepts/scoring.md
+  - Plugins:
+    - Overview: plugins/overview.md
+    - Anthropic: plugins/anthropic.md
+    - OpenAI: plugins/openai.md
+    - Groq: plugins/groq.md
+    - Custom Plugins: plugins/custom.md
+  - Templates:
+    - Overview: templates/overview.md
+    - System Templates: templates/system.md
+    - Graph Templates: templates/graph.md
+    - Custom Templates: templates/custom.md
+  - Utils:
+    - Overview: utils/overview.md
+    - TFIDF: utils/tfidf.md
+    - Base Format: utils/base-format.md
+  - API Reference:
+    - Core: api/core.md
+    - Plugins: api/plugins.md
+    - Templates: api/templates.md
+    - Utils: api/utils.md
+  - Cookbook:
+    - Basic Usage: cookbook/basic.md
+    - Advanced Patterns: cookbook/advanced.md
+    - Integration Examples: cookbook/integration.md
+  - Contributing: contributing.md
