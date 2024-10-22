@@ -1,0 +1,2 @@
+class BaseLLMException(Exception):
+    pass

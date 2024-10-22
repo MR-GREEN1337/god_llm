@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "god_llm"
+version = "0.1.0"
+description = ""
+authors = ["mr-green1337 <islam.hachimi2003@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+ruff = "^0.7.0"
+pytest = "^8.3.3"
+openai = "^1.52.0"
+groq = "^0.11.0"
+anthropic = "^0.36.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
