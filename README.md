@@ -1,3 +1,5 @@
+[![Publish Python Package](https://github.com/MR-GREEN1337/god_llm/actions/workflows/release.yml/badge.svg)](https://github.com/MR-GREEN1337/god_llm/actions/workflows/release.yml)
+
 # God LLM 🤖
 
 A framework for recursive thought expansion and exploration using Large Language Models.

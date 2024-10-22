@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install poetry
-          poetry install --extras "docs" && poetry add mkdocs mkdocs-material mkdocstrings pymdown-extensions
+          poetry install --extras "docs" && poetry add mkdocs mkdocs-material mkdocs-minify-plugin mkdocs-autorefs mkdocstrings pymdown-extensions
 
       - name: Deploy to GitHub Pages
         run: |
