@@ -2,6 +2,8 @@
 
 A framework for recursive thought expansion and exploration using Large Language Models.
 
+> Inspired by the article I wrote [Let's Build a God LLM](https://medium.com/@islamhachimi/lets-a-build-a-god-llm-0beaf2460659) which explores the concept of recursive thought expansion and deep exploration using language models.
+
 ## 🌟 Features
 
 ### Core Functionality
@@ -82,6 +84,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
+- Original concept inspired by [Islam Hachimi's article](https://medium.com/@islamhachimi/lets-a-build-a-god-llm-0beaf2460659)
 - All contributors and feedback providers
 
 ---
