@@ -97,3 +97,25 @@ class Node(BaseModel):
             similarities.append(similarity * decay_factor)
             
         return np.mean(similarities) if similarities else 1.0
+
+class MinQuestionScore(BaseModel):
+    min_question_score: float = Field(
+        ..., ge=0.0, le=1.0, description="Score must be between 0 and 1."
+    )
+
+    @field_validator("min_question_score")
+    def validate_min_question_score(cls, v):
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("min_question_score must be between 0 and 1.")
+        return v
+
+class SimilarityTreshold(BaseModel):
+    similarity_threshold: float = Field(
+        ..., ge=0.0, le=1.0, description="Treshold must be between 0 and 1."
+    )
+
+    @field_validator("similarity_threshold")
+    def validate_similarity_threshold(cls, v):
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("similarity_threshold must be between 0 and 1.")
+        return v

@@ -94,3 +94,5 @@ Built with ❤️ for better thought exploration
 
 ## When finding path, also account for relations, combine hierarchical (parent-child) and lateral (relations) nodes for retrieval, give higher weight for parent-child relationships
 ## Allow to ask the right questions, that is the true wisdom of the God LLM
+## Implement function calling to only retreive questions
+## FIx errors in scoring

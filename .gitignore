@@ -5,13 +5,14 @@ __pycache__/
 
 # C extensions
 *.so
-
+api_key.md
 # Auth DB
 encryption.key
 auth.db
 
 #Log file
 god_llm.log
+question_evaluator.log
 
 # Distribution / packaging
 .Python

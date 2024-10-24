@@ -1,17 +1,18 @@
 import os
 import time
-from typing import List, Optional, Dict, Set, Union, Tuple
+from typing import List, Optional, Dict, Set
 import numpy as np
 from dataclasses import dataclass
 from enum import Enum
-from collections import defaultdict, deque
+from collections import defaultdict
 import heapq
 from loguru import logger
 
+from god_llm.core.question_evaluator import QuestionEvaluator
 from god_llm.templates.base import TemplateManager
 from god_llm.plugins.base import AIMessage, BaseLLM, UserMessage
 from god_llm.utils.tfidf import TfidfVectorizer
-from .base import Node, Context
+from .base import MinQuestionScore, Node, Context
 
 class ScoreMetric(Enum):
     DEPTH = "depth"
@@ -19,6 +20,7 @@ class ScoreMetric(Enum):
     COHERENCE = "coherence"
     NOVELTY = "novelty"
     CONTEXT_RETENTION = "context_retention"
+    HIERARCHY = "hierarchy"
 
 @dataclass
 class PathScore:
@@ -26,19 +28,34 @@ class PathScore:
     metrics: Dict[ScoreMetric, float]
 
 class God:
+    """
+    A class representing the capabilities of a high-level Large Language Model (LLM) with enhanced contextual awareness and reasoning abilities.
+
+    "For the LORD gives wisdom; from his mouth come knowledge and understanding." — Proverbs 2:6 (NIV)
+
+    Attributes:
+        llm (BaseLLM): The large language model used for generating responses.
+        similarity_threshold (float): Threshold for determining similarity between nodes.
+        max_iterations (int): Maximum number of iterations for generating responses.
+        context_window (int): Number of past nodes to consider for context history.
+        template_manager (Optional[TemplateManager]): Manages prompt templates for the LLM.
+        debug (bool): Enables debug logging if set to True.
+    """
+
     def __init__(
         self,
         llm: BaseLLM,
         similarity_threshold: float = 0.7,
         max_iterations: int = 4,
         context_window: int = 3,
+        min_question_score: MinQuestionScore = MinQuestionScore(min_question_score=0.4),
         template_manager: Optional[TemplateManager] = None,
         debug: bool = False,
     ):
         self.debug = debug
         if self.debug:
             logger.add("god_llm.log", rotation="10 MB", level="INFO")
-            logger.info(f"Initializing EnhancedGod with parameters: "
+            logger.info(f"Initializing God with parameters: "
                        f"similarity_threshold={similarity_threshold}, "
                        f"max_iterations={max_iterations}, "
                        f"context_window={context_window}")
@@ -49,7 +66,9 @@ class God:
         self.context_window = context_window
         self.template_manager = template_manager or TemplateManager()
         self.nodes: Dict[str, Node] = {}
-        
+        self.question_evaluator = QuestionEvaluator(llm=llm, debug=debug)
+        self.min_question_score = min_question_score.min_question_score
+
         self.metric_weights = {
             ScoreMetric.DEPTH: 0.25,
             ScoreMetric.RELATION: 0.15,
@@ -211,58 +230,112 @@ class God:
 
         return final_score > self.similarity_threshold
 
-    def expand(self, prompt: str, parent_id: Optional[str] = None, depth: int = 0) -> str:
-        if self.debug:
-            logger.info(f"Expanding prompt at depth {depth}")
-
-        # Build context history
-        context_history = self._build_context_history(parent_id)
-
-        # Create enhanced prompt with context
-        enhanced_prompt = self._create_enhanced_prompt(prompt, context_history)
-
-        # Generate thought
-        prompt_msg = AIMessage(content=prompt, model=self.llm.model_name, provider=self.llm.provider) if parent_id else UserMessage(content=prompt)
-
-        template = self.template_manager.get_template("thought_generator")
-        thought = self.llm.generate(template.format(context=enhanced_prompt))
-
-        # Create and store node
-        node = Node(
-            prompt=prompt_msg,
-            thought=thought,
-            parent_id=parent_id,
-            context_history=context_history,
-        )
-
-        if parent_id:
-            self.nodes[parent_id].children.append(node.id)
-
-        self.nodes[node.id] = node
-        self._find_relations(node)
-
-        # Check relevance of the newly created node
-        if not self._is_node_relevant(node, prompt):
+    def _generate_and_filter_questions(self, context: str, thought: str, num_questions: int = 5) -> List[str]:
+        """Generate, evaluate, and filter questions to ensure quality."""
+        # Generate more questions than needed to allow for filtering
+        template = self.template_manager.get_template("question_generator")
+        raw_questions = self.llm.generate(
+            template.format(
+                context=context,
+                response=thought,
+                num_questions=num_questions * 2  # Generate extra questions
+            )
+        ).content.split("\n")
+        
+        # Evaluate each question
+        scored_questions = []
+        for question in [q.strip() for q in raw_questions if q.strip()]:
+            score, metrics = self.question_evaluator.evaluate_question(
+                question=question,
+                context=context,
+                previous_thought=thought
+            )
+            
             if self.debug:
-                logger.info(f"Deleting irrelevant node {node.id} related to prompt '{prompt}'")
-            self._delete_node(node.id)
-            return parent_id  # Return parent_id if the node is deleted
+                logger.debug(f"""
+                Question evaluation:
+                Question: {question}
+                Total Score: {score:.3f}
+                Metrics: {metrics}
+                """)
+                
+            if score >= self.min_question_score:
+                scored_questions.append((score, question))
+                
+        # Sort by score and take the top questions
+        scored_questions.sort(reverse=True)
+        return [q for _, q in scored_questions[:num_questions]]
 
-        # Generate follow-up questions if not at max depth
-        if depth < self.max_iterations:
-            template = self.template_manager.get_template("question_generator")
-            questions = self.llm.generate(
-                template.format(
+    def expand(self, prompt: str, parent_id: Optional[str] = None, depth: int = 0, retry_count: int = 0, max_nodes: int = 15) -> str:
+            """
+            Expands a prompt into a thought and generates follow-up questions.
+            Now includes retry logic when nodes are deemed irrelevant.
+            """
+            if self.debug:
+                logger.info(f"Expanding prompt at depth {depth}, retry {retry_count}")
+
+            # Build context history
+            context_history = self._build_context_history(parent_id)
+
+            # Create enhanced prompt with context
+            enhanced_prompt = self._create_enhanced_prompt(prompt, context_history)
+
+            # Generate thought
+            prompt_msg = AIMessage(content=prompt, model=self.llm.model_name, provider=self.llm.provider) if parent_id else UserMessage(content=prompt)
+
+            template = self.template_manager.get_template("thought_generator")
+            thought = self.llm.generate(template.format(context=enhanced_prompt))
+
+            # Create and store node
+            node = Node(
+                prompt=prompt_msg,
+                thought=thought,
+                parent_id=parent_id,
+                context_history=context_history,
+            )
+
+            if parent_id:
+                self.nodes[parent_id].children.append(node.id)
+
+            self.nodes[node.id] = node
+            self._find_relations(node)
+
+            # Check relevance of the newly created node
+            if not self._is_node_relevant(node, prompt):
+                if self.debug:
+                    logger.info(f"Node {node.id} not relevant, attempt {retry_count + 1} of {self.max_retries}")
+                
+                # Clean up the irrelevant node
+                self._delete_node(node.id)
+                
+                # Retry expansion if we haven't exceeded max retries
+                if retry_count < self.max_retries:
+                    if self.debug:
+                        logger.info("Retrying expansion with modified prompt")
+                    # Add a retry indicator to the prompt to encourage different response
+                    modified_prompt = f"Alternative perspective needed: {prompt}"
+                    return self.expand(modified_prompt, parent_id, depth, retry_count + 1)
+                else:
+                    if self.debug:
+                        logger.warning(f"Max retries ({self.max_retries}) exceeded, returning parent_id")
+                    return parent_id
+
+            # Generate follow-up questions if not at max depth
+            if depth < self.max_iterations:
+                questions = self._generate_and_filter_questions(
                     context=enhanced_prompt,
-                    response=thought.content,
+                    thought=thought.content,
                     num_questions=3
                 )
-            ).content.split("\n")
 
-            for question in [q.strip() for q in questions if q.strip()]:
-                _ = self.expand(question, node.id, depth + 1)
+                for question in questions:
+                    if len(self.nodes) >= max_nodes:
+                        if self.debug:
+                            logger.warning(f"Maximum number of nodes reached, stopping expansion")
+                        return node.id
+                    _ = self.expand(question, node.id, depth + 1)
 
-        return node.id
+            return node.id
 
     def _delete_node(self, node_id: str) -> None:
         """Delete the node and clean up references."""
@@ -554,14 +627,3 @@ class God:
             output_file = os.path.join(output_dir, f"miracle_{root_id}.md")
             with open(output_file, "w") as f:
                 f.write(markdown_content)
-
-    def visualize(self) -> str:
-        if self.debug:
-            logger.info("Generating visualization")
-        mermaid = ["graph TD"]
-        for node_id, node in self.nodes.items():
-            mermaid.append(f'{node_id}["{node.prompt.content[:20]}..."]')
-            if node.parent_id:
-                mermaid.append(f'{node.parent_id} --> {node_id}')
-
-        return "\n".join(mermaid)

@@ -1,8 +1,8 @@
 site_name: God LLM Documentation
 site_description: Documentation for the God LLM thought exploration framework
-site_author: Your Name
-repo_url: https://github.com/mr-green1337/god-llm
-repo_name: god-llm
+site_author: mr-green1337
+repo_url: https://github.com/mr-green1337/god_llm
+repo_name: god_llm
 
 theme:
   name: material
