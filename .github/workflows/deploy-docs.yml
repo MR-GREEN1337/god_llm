@@ -25,3 +25,6 @@ jobs:
       - name: Deploy to GitHub Pages
         run: |
           poetry run mkdocs gh-deploy --force
+
+permissions:
+  contents: write  # Ensure permissions for writing to GitHub Pages
